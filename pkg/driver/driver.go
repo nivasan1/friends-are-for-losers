@@ -39,6 +39,7 @@ func (d *Driver) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-errCh:
+			close(registrations)
 			return err
 		}
 	}

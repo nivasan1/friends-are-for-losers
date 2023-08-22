@@ -13,3 +13,17 @@ lint-fix:
 tidy:
 	@echo "--> Running go mod tidy"
 	@go mod tidy
+
+generate-mocks:
+	@echo "--> Generating mocks"
+	@go generate ./...
+
+workspace-init:
+	@echo "--> Initializing workspace"
+	@go work init
+	@go work edit -use ./
+
+test:
+	@echo "--> Running tests"
+	@go clean -testcache
+	@go test -v -race ./...

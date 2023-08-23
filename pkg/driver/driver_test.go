@@ -102,6 +102,23 @@ func (s *DriverTestSuite) TestDriverFailures() {
 	})
 }
 
+func (s *DriverTestSuite) TestDriverQuitsWhenTrackerQuitsUnexpectedly() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registrations := make(chan *types.Registration)
+	s.Run("when the Tracker quits unexpectedly, the driver quits", func() {
+		s.mockTracker.On("Track", ctx).Return(receiver(registrations)).Run(func(args mock.Arguments) {
+			// force tracker to quit immediately
+			close(registrations)
+		})
+		s.mockTracker.On("Close").Return(fmt.Errorf("error")).Once()
+
+		// start the driver in gr
+		s.EqualError(s.driver.Run(ctx), "unexpected quit")
+	})
+}
+
 func receiver[A any](ch chan A) <-chan A {
 	return ch
 }

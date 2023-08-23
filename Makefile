@@ -1,3 +1,5 @@
+TRACKER_ADDR ?=	wss://localhost:8080
+
 get-linter:
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(golangci_version)
 
@@ -27,3 +29,7 @@ test:
 	@echo "--> Running tests"
 	@go clean -testcache
 	@go test -v -race ./...
+
+run-tracker:
+	@echo "--> Running tracker"
+	@go run cmd/tracker/main.go --addr $(TRACKER_ADDR)

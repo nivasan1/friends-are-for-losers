@@ -2,8 +2,10 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
+	fofl "github.com/nivasan1/friends-are-for-losers/pkg"
 	"github.com/nivasan1/friends-are-for-losers/pkg/tracker"
 	"github.com/nivasan1/friends-are-for-losers/pkg/twitter"
 	"github.com/nivasan1/friends-are-for-losers/pkg/types"
@@ -11,32 +13,27 @@ import (
 )
 
 type Driver struct {
-	Tracker tracker.Tracker
-	Twitter twitter.Filter
-	logger  Logger
+	tracker tracker.Tracker
+	twitter twitter.Filter
+	logger  fofl.Logger
 }
 
-type Logger interface {
-	Info(msg string, fields ...zap.Field)
-	Error(msg string, fields ...zap.Field)
-}
-
-func NewDriver(tracker tracker.Tracker, twitter twitter.Filter, logger Logger) *Driver {
+func NewDriver(tracker tracker.Tracker, twitter twitter.Filter, logger fofl.Logger) *Driver {
 	return &Driver{
-		Tracker: tracker,
-		Twitter: twitter,
+		tracker: tracker,
+		twitter: twitter,
 		logger:  logger,
 	}
 }
 
 func (d *Driver) Run(ctx context.Context) error {
-	registrations := d.Tracker.Track(ctx)
+	registrations := d.tracker.Track(ctx)
 	done := make(chan struct{})
 
 	// wait for all threads to finish after closing the tracker
 	defer func() {
 		// close the tracker when finished
-		d.Tracker.Close()
+		d.tracker.Close()
 
 		// wait for all registration threads to finish
 		<-done
@@ -57,12 +54,12 @@ func (d *Driver) Run(ctx context.Context) error {
 				defer wg.Done()
 
 				// check if this twitter acct. is worth purchasing shares
-				ok, err := d.Twitter.Filter(ctx, registration.Address)
+				ok, err := d.twitter.Filter(ctx, registration.Address)
 				if err != nil {
 					d.logger.Error("error filtering twitter", zap.Error(err))
 
 					// send the error back to the main thread if there is an error here
-					nonBlockingSend(errCh, err)
+					fofl.NonBlockingSend(errCh, err)
 					return
 				}
 
@@ -78,6 +75,7 @@ func (d *Driver) Run(ctx context.Context) error {
 
 		// wait for all threads to finish (fan-in)
 		wg.Wait()
+
 		close(done)
 	}()
 
@@ -87,26 +85,7 @@ func (d *Driver) Run(ctx context.Context) error {
 		return ctx.Err()
 	case err := <-errCh:
 		return err
-	}
-}
-
-func nonBlockingSend[A any](ch chan A, a A) {
-	// first check that the channel isn't closed
-	if !checkOpen(ch) {
-		return
-	}
-
-	select {
-	case ch <- a:
-	default:
-	}
-}
-
-func checkOpen[A any](ch chan A) bool {
-	select {
-	case _, ok := <-ch:
-		return ok
-	default: // this channel is open
-		return true
+	case <-done:
+		return fmt.Errorf("unexpected quit")
 	}
 }
